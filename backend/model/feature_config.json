@@ -1,0 +1,49 @@
+{
+  "feature_names": [
+    "Quantity",
+    "USD_Value",
+    "Rate",
+    "Log_Quantity",
+    "Is_Large_Order",
+    "Is_High_Value",
+    "Delivery_Month",
+    "Delivery_Quarter",
+    "Delivery_DayOfWeek",
+    "Buyer_Freq",
+    "Plant_Freq",
+    "Plant_enc",
+    "Buyer_enc",
+    "Division_enc",
+    "Season_enc",
+    "Gender_enc",
+    "Customer Group_enc",
+    "Brands_enc"
+  ],
+  "categorical_features": [
+    "Plant",
+    "Buyer",
+    "Division",
+    "Season",
+    "Gender",
+    "Customer Group",
+    "Brands"
+  ],
+  "numeric_features": [
+    "Quantity",
+    "USD_Value",
+    "Rate"
+  ],
+  "engineered_features": [
+    "Delivery_Month",
+    "Delivery_Quarter",
+    "Delivery_DayOfWeek",
+    "Is_Large_Order",
+    "Is_High_Value",
+    "Log_Quantity",
+    "Buyer_Freq",
+    "Plant_Freq"
+  ],
+  "rare_threshold": 20,
+  "trained_at": "2026-03-04T14:03:08.439736",
+  "data_path": "C:\\SAIF\\TranAI\\richa-signal-poc\\backend\\..\\data\\order_sample_data.xlsx"
+}
