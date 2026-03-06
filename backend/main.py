@@ -21,9 +21,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from typing import Optional, List, Dict
+
 # Define the Chat Request format
 class ChatRequest(BaseModel):
     question: str
+    history: Optional[List[Dict[str, str]]] = []
 
 @app.get("/")
 def home():
@@ -80,6 +83,36 @@ def get_business_rules():
     with open(path, "r") as f:
         return json.load(f)
 
+@app.post("/api/kpi/business-rules")
+def update_business_rules(payload: dict):
+    """Save new business rules and trigger a live reload of the analytics engines."""
+    path = os.path.join(BASE_DIR, "business_rules.json")
+    try:
+        with open(path, "w") as f:
+            json.dump(payload, f, indent=4)
+            
+        print("🔄 Business Rules updated. Reloading analytics engines...")
+        # Reload the OTIF Engine and Agent context here
+        otif_engine.__init__() 
+        import agent
+        agent.ENGINE.__init__()
+        
+        return {"status": "success", "message": "Business rules updated successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save rules: {str(e)}")
+
+@app.post("/api/system/retrain")
+def trigger_model_retrain():
+    """Trigger the XGBoost ML model retraining script asynchronously."""
+    import subprocess
+    script_path = os.path.join(BASE_DIR, "train_model.py")
+    try:
+        # Run in background to not block the request
+        subprocess.Popen(["python", script_path], cwd=BASE_DIR)
+        return {"status": "success", "message": "ML Model training started in the background."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to start training: {str(e)}")
+
 @app.get("/api/system/info")
 def get_system_info():
     """System metadata: data size, last reload, active orders count."""
@@ -120,7 +153,7 @@ def chat_with_data(request: ChatRequest):
         raise HTTPException(status_code=400, detail="No question provided")
     
     print(f"🤖 User asked: {request.question}")
-    answer = query_data(request.question)
+    answer = query_data(request.question, request.history)
     print(f"💡 AI answered: {answer}")
     
     return {"answer": answer}

@@ -26,7 +26,7 @@ export default function LoginPage() {
 
             localStorage.setItem('auth', JSON.stringify({ user: username, role, label }));
             setLoading(false);
-            navigate('/');
+            window.location.href = '/';
         }, 600);
     };
 

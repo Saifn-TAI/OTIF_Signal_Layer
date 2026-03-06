@@ -44,11 +44,18 @@ export default function ChatPage() {
 
     const sendMessage = async (text) => {
         if (!text.trim()) return;
+
+        // Capture context before adding user message
+        const currentHistory = [...messages];
+
         setMessages(prev => [...prev, { role: 'user', text: text.trim() }]);
         setInput('');
         setLoading(true);
         try {
-            const res = await axios.post(API_URL, { question: text.trim() });
+            const res = await axios.post(API_URL, {
+                question: text.trim(),
+                history: currentHistory.map(m => ({ role: m.role, text: m.text }))
+            });
             const answer = typeof res.data.answer === 'string' ? res.data.answer : JSON.stringify(res.data.answer);
             setMessages(prev => [...prev, { role: 'assistant', text: answer }]);
         } catch {

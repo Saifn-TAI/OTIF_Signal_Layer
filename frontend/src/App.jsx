@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-
 import axios from 'axios';
 import { useTheme } from './theme';
 import CommandPalette from './components/CommandPalette';
+import ChatWidget from './components/ChatWidget';
 import PageWrapper from './components/PageWrapper';
 import ProtectedRoute from './components/ProtectedRoute';
 import LoginPage from './pages/LoginPage';
@@ -239,7 +240,7 @@ function FloatingHeader({ onRefresh, refreshing, lastUpdated }) {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const handleLogout = () => { localStorage.removeItem('auth'); navigate('/login'); };
+  const handleLogout = () => { localStorage.removeItem('auth'); window.location.href = '/login'; };
 
   const PAGE_TITLES = {
     '/': 'Signal AI',
@@ -521,6 +522,9 @@ function AppLayout() {
 
       {/* Command Palette */}
       <CommandPalette isOpen={cmdPaletteOpen} onClose={() => setCmdPaletteOpen(false)} orders={orders} />
+
+      {/* Global AI Chat Widget */}
+      <ChatWidget />
     </div>
   );
 }

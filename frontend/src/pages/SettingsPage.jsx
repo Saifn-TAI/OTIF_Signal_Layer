@@ -19,6 +19,10 @@ export default function SettingsPage() {
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('system');
 
+    const [editMode, setEditMode] = useState(false);
+    const [editedRules, setEditedRules] = useState(null);
+    const [saving, setSaving] = useState(false);
+
     useEffect(() => {
         Promise.allSettled([
             axios.get(`${API}/api/system/info`),
@@ -26,11 +30,47 @@ export default function SettingsPage() {
             axios.get(`${API}/api/kpi/model-report`),
         ]).then(([sys, biz, mod]) => {
             if (sys.status === 'fulfilled') setSysInfo(sys.value.data);
-            if (biz.status === 'fulfilled') setBizRules(biz.value.data);
+            if (biz.status === 'fulfilled') {
+                setBizRules(biz.value.data);
+                setEditedRules(biz.value.data);
+            }
             if (mod.status === 'fulfilled') setModelReport(mod.value.data);
             setLoading(false);
         });
     }, []);
+
+    const handleSaveRules = async () => {
+        setSaving(true);
+        try {
+            await axios.post(`${API}/api/kpi/business-rules`, editedRules);
+            setBizRules(editedRules);
+            setEditMode(false);
+        } catch (error) {
+            alert('Failed to save rules. Make sure the backend is running.');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleRetrainModel = async () => {
+        if (!confirm('This will start retraining the ML model in the background. It may take a minute. Continue?')) return;
+        try {
+            await axios.post(`${API}/api/system/retrain`);
+            alert('Model retraining started! Check the backend terminal for progress. The new model will be loaded automatically on next startup.');
+        } catch (error) {
+            alert('Failed to start training.');
+        }
+    };
+
+    const updateRuleItem = (category, key, value) => {
+        setEditedRules(prev => ({
+            ...prev,
+            [category]: {
+                ...prev[category],
+                [key]: typeof value === 'number' ? Number(value) : value
+            }
+        }));
+    };
 
     const tabs = [
         { id: 'system', label: 'System', icon: Activity },
@@ -213,52 +253,109 @@ export default function SettingsPage() {
                                     </div>
                                 ))}
                         </div>
-                        <div style={{ padding: '12px 20px', borderTop: `1px solid ${T.divider}`, background: T.inputBg }}>
-                            <div style={{ fontSize: 11, color: T.textMuted }}>To retrain: <code style={{ fontFamily: 'monospace', color: T.accent, background: T.accentSoft, padding: '1px 6px', borderRadius: 4 }}>cd backend && python train_model.py</code></div>
+                        <div style={{ padding: '12px 20px', borderTop: `1px solid ${T.divider}`, background: T.inputBg, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ fontSize: 11, color: T.textMuted }}>Train on new production data to improve accuracy.</div>
+                            <button onClick={handleRetrainModel} style={{ padding: '6px 14px', borderRadius: 6, border: `1px solid ${T.accent}`, background: T.accentSoft, color: T.accent, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                                Retrain Model Now
+                            </button>
                         </div>
                     </Card>
                 </div>
             )}
 
             {!loading && activeTab === 'model' && !modelReport && (
-                <div style={{ padding: 32, textAlign: 'center', color: T.textMuted, fontSize: 13 }}>
-                    Model report not found. Run <code style={{ color: T.accent }}>python train_model.py</code> in the backend directory.
+                <div style={{ padding: 32, textAlign: 'center', color: T.textMuted, fontSize: 13, background: T.surface, borderRadius: 14, border: `1px solid ${T.divider}` }}>
+                    Model report not found.
+                    <div style={{ marginTop: 12 }}>
+                        <button onClick={handleRetrainModel} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: T.accent, color: '#FFF', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                            Train Initial Model
+                        </button>
+                    </div>
                 </div>
             )}
 
             {/* ── BUSINESS RULES TAB ── */}
-            {!loading && activeTab === 'rules' && bizRules && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                    <Card>
-                        <CardHeader title="Production Stage Lead Times" sub="Days required per stage (editable in business_rules.json)" />
-                        {Object.entries(bizRules.lead_times || {}).map(([stage, days]) => (
-                            <div key={stage} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 20px', borderBottom: `1px solid ${T.divider}` }}>
-                                <span style={{ fontSize: 13, color: T.textSecondary }}>{stage}</span>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                    <div style={{ width: 60, height: 5, background: T.divider, borderRadius: 3, overflow: 'hidden' }}>
-                                        <div style={{ height: '100%', width: `${(days / 40) * 100}%`, background: T.accent, borderRadius: 3 }} />
-                                    </div>
-                                    <span style={{ fontSize: 13, fontWeight: 700, color: T.text, minWidth: 36 }}>{days}d</span>
+            {!loading && activeTab === 'rules' && bizRules && editedRules && (
+                <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 20 }}>
+                        <div>
+                            <h3 style={{ margin: '0 0 4px', color: T.text, fontSize: 16 }}>Business & Analytics Rules</h3>
+                            <div style={{ fontSize: 13, color: T.textMuted }}>Modifying these rules instantly changes how active orders are scored and colored.</div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 10 }}>
+                            {editMode ? (
+                                <>
+                                    <button onClick={() => { setEditMode(false); setEditedRules(bizRules); }} style={{ padding: '8px 16px', borderRadius: 8, border: `1px solid ${T.divider}`, background: T.surface, color: T.text, cursor: 'pointer', fontWeight: 600 }}>Cancel</button>
+                                    <button onClick={handleSaveRules} disabled={saving} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: T.accent, color: '#FFF', cursor: saving ? 'not-allowed' : 'pointer', fontWeight: 600 }}>{saving ? 'Saving...' : 'Save & Hot Reload'}</button>
+                                </>
+                            ) : (
+                                <button onClick={() => setEditMode(true)} style={{ padding: '8px 16px', borderRadius: 8, border: `1px solid ${T.accent}`, background: T.accentSoft, color: T.accent, cursor: 'pointer', fontWeight: 600 }}>Edit Rules</button>
+                            )}
+                        </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                        <Card>
+                            <CardHeader title="Production Stage Lead Times" sub="Days required per stage" />
+                            {Object.entries(editedRules.lead_times || {}).map(([stage, days]) => (
+                                <div key={stage} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 20px', borderBottom: `1px solid ${T.divider}` }}>
+                                    <span style={{ fontSize: 13, color: T.textSecondary }}>{stage}</span>
+                                    {editMode && stage !== 'Shipped' ? (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                            <input type="number" value={days} onChange={e => updateRuleItem('lead_times', stage, e.target.value)} style={{ width: 60, padding: '4px 8px', borderRadius: 6, border: `1px solid ${T.divider}`, background: T.inputBg, color: T.text, outline: 'none' }} />
+                                            <span style={{ fontSize: 12, color: T.textMuted }}>days</span>
+                                        </div>
+                                    ) : (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                            <div style={{ width: 60, height: 5, background: T.divider, borderRadius: 3, overflow: 'hidden' }}>
+                                                <div style={{ height: '100%', width: `${(days / 40) * 100}%`, background: T.accent, borderRadius: 3 }} />
+                                            </div>
+                                            <span style={{ fontSize: 13, fontWeight: 700, color: T.text, minWidth: 36 }}>{days}d</span>
+                                        </div>
+                                    )}
                                 </div>
-                            </div>
-                        ))}
-                    </Card>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                        <Card>
-                            <CardHeader title="Risk Thresholds" sub="Determines RED / YELLOW / GREEN classification" />
-                            {Object.entries(bizRules.breach_thresholds || {}).map(([k, v]) => (
-                                <InfoRow key={k} label={k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())} value={`${v}${k.includes('threshold') ? '%' : ''}`} badge color={k.includes('red') ? T.red : k.includes('yellow') ? T.yellow : T.accent} />
                             ))}
                         </Card>
 
-                        <Card>
-                            <CardHeader title="System Limits" />
-                            {Object.entries(bizRules.thresholds || {}).map(([k, v]) => (
-                                <InfoRow key={k} label={k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())} value={String(v)} />
-                            ))}
-                            <InfoRow label="Min Orders for Profile" value={String(bizRules.profile_min_orders || '—')} />
-                        </Card>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                            <Card>
+                                <CardHeader title="Risk Thresholds" sub="Determines RED / YELLOW / GREEN classification score" />
+                                {Object.entries(editedRules.breach_thresholds || {}).map(([k, v]) => (
+                                    <div key={k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '11px 20px', borderBottom: `1px solid ${T.divider}` }}>
+                                        <span style={{ fontSize: 13, color: T.textSecondary }}>{k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</span>
+                                        {editMode ? (
+                                            <input type="number" value={v} onChange={e => updateRuleItem('breach_thresholds', k, e.target.value)} style={{ width: 70, padding: '4px 8px', borderRadius: 6, border: `1px solid ${T.divider}`, background: T.inputBg, color: T.text, outline: 'none' }} />
+                                        ) : (
+                                            <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 6, background: `${k.includes('red') ? T.red : k.includes('yellow') ? T.yellow : T.accent}18`, color: k.includes('red') ? T.red : k.includes('yellow') ? T.yellow : T.accent }}>
+                                                {v}{k.includes('threshold') ? '%' : ''}
+                                            </span>
+                                        )}
+                                    </div>
+                                ))}
+                            </Card>
+
+                            <Card>
+                                <CardHeader title="System Limits" />
+                                {Object.entries(editedRules.thresholds || {}).map(([k, v]) => (
+                                    <div key={k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '11px 20px', borderBottom: `1px solid ${T.divider}` }}>
+                                        <span style={{ fontSize: 13, color: T.textSecondary }}>{k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</span>
+                                        {editMode ? (
+                                            <input type="number" value={v} onChange={e => updateRuleItem('thresholds', k, e.target.value)} style={{ width: 70, padding: '4px 8px', borderRadius: 6, border: `1px solid ${T.divider}`, background: T.inputBg, color: T.text, outline: 'none' }} />
+                                        ) : (
+                                            <span style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{v}</span>
+                                        )}
+                                    </div>
+                                ))}
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '11px 20px', borderBottom: `1px solid ${T.divider}` }}>
+                                    <span style={{ fontSize: 13, color: T.textSecondary }}>Min Orders for Profile</span>
+                                    {editMode ? (
+                                        <input type="number" value={editedRules.profile_min_orders || ''} onChange={e => setEditedRules(prev => ({ ...prev, profile_min_orders: Number(e.target.value) }))} style={{ width: 70, padding: '4px 8px', borderRadius: 6, border: `1px solid ${T.divider}`, background: T.inputBg, color: T.text, outline: 'none' }} />
+                                    ) : (
+                                        <span style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{editedRules.profile_min_orders || '—'}</span>
+                                    )}
+                                </div>
+                            </Card>
+                        </div>
                     </div>
 
                     <Card style={{ gridColumn: 'span 2' }}>

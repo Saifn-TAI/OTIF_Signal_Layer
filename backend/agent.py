@@ -288,10 +288,21 @@ print(f"✅ Loaded {len(ENGINE.df)} active orders.")
 
 
 # --- MAIN CHAT HANDLER ---
-def query_data(user_question):
+def query_data(user_question, history=None):
     try:
         # Attempt to find specific order data related to the question
         search_context = ENGINE.search_orders(user_question) or ""
+        
+        # Format recent history for the prompt (last 6 messages / 3 turns)
+        history_text = ""
+        if history and isinstance(history, list):
+            history_parts = []
+            for msg in history[-6:]:
+                role = "User" if msg.get("role") == "user" else "Assistant"
+                text = msg.get("text", "")
+                history_parts.append(f"{role}: {text}")
+            if history_parts:
+                history_text = "\n=== RECENT CONVERSATION HISTORY ===\n" + "\n\n".join(history_parts) + "\n"
 
         # Build the LLM prompt with full data context
         llm = ChatGroq(
@@ -320,7 +331,7 @@ RULES:
 {data_summary}
 
 {search_results}
-
+{history_text}
 === USER QUESTION ===
 {question}
 
@@ -331,6 +342,7 @@ Respond now:"""
         result = chain.invoke({
             "data_summary": ENGINE.data_summary,
             "search_results": search_context,
+            "history_text": history_text,
             "question": user_question
         })
 
